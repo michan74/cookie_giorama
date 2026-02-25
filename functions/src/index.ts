@@ -20,6 +20,29 @@ type LineWebhookBody = {
   events?: LineWebhookEvent[];
 };
 
+function toErrorInfo(error: unknown): {
+  name: string;
+  message: string;
+  stack?: string;
+  status?: number;
+} {
+  if (error instanceof Error) {
+    const errorWithStatus = error as Error & { status?: number };
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      status: errorWithStatus.status,
+    };
+  }
+
+  const fallback = String(error);
+  return {
+    name: "UnknownError",
+    message: fallback,
+  };
+}
+
 async function replyText(replyToken: string, text: string, channelAccessToken: string): Promise<void> {
   const response = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
@@ -103,7 +126,8 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
     res.status(500).send("Server configuration error");
     return;
   }
-  const vertexLocation = process.env.VERTEX_LOCATION ?? "asia-northeast1";
+  const vertexLocation = process.env.VERTEX_LOCATION ?? "global";
+  const vertexImageModel = process.env.VERTEX_IMAGE_MODEL ?? "gemini-2.5-flash-image";
   const storageBucket = process.env.STORAGE_BUCKET;
   if (!storageBucket) {
     logger.error("STORAGE_BUCKET is not configured");
@@ -156,18 +180,38 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
       continue;
     }
 
+    let stage = "generate_image";
     try {
-      const generated = await generateCookieImage(message.text, vertexProject, vertexLocation);
+      const generated = await generateCookieImage(
+        message.text,
+        vertexProject,
+        vertexLocation,
+        vertexImageModel,
+      );
+
+      stage = "upload_storage";
       const imageUrl = await uploadCookieImage(generated.imageBytes, message.userId ?? "unknown");
       logger.info("Image generated", {
         mimeType: generated.mimeType,
         imageBytes: generated.imageBytes.length,
         imageUrl,
+        vertexLocation,
+        vertexImageModel,
       });
 
+      stage = "reply_line";
       await replySuccessWithImage(message.replyToken, imageUrl, channelAccessToken);
     } catch (error) {
-      logger.error("Failed in image generation flow", { error });
+      const errorInfo = toErrorInfo(error);
+      logger.error("Failed in image generation flow", {
+        stage,
+        errorName: errorInfo.name,
+        errorMessage: errorInfo.message,
+        errorStatus: errorInfo.status,
+        errorStack: errorInfo.stack,
+        vertexLocation,
+        vertexImageModel,
+      });
       await replyText(message.replyToken, "画像生成でエラーが発生しました。", channelAccessToken);
     }
   }

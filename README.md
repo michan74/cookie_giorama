@@ -20,7 +20,8 @@ npm --prefix functions install
 - `LINE_CHANNEL_SECRET`
 - `LINE_CHANNEL_ACCESS_TOKEN`
 - `GCP_PROJECT_ID`
-- `VERTEX_LOCATION`（例: `asia-northeast1`）
+- `VERTEX_LOCATION`（推奨: `global`）
+- `VERTEX_IMAGE_MODEL`（例: `gemini-2.5-flash-image`）
 - `DATABASE_URL`
 - `STORAGE_BUCKET`
 

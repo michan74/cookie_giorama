@@ -49,6 +49,7 @@ export async function generateCookieImage(
   userInputText: string,
   vertexProject: string,
   vertexLocation: string,
+  model: string,
 ): Promise<{ imageBytes: Buffer; mimeType: string; prompt: string }> {
   const prompt = buildCookieImagePrompt(userInputText);
   const ai = new GoogleGenAI({
@@ -57,16 +58,26 @@ export async function generateCookieImage(
     location: vertexLocation,
   });
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-image",
-    contents: prompt,
-    config: {
-      responseModalities: [Modality.IMAGE],
-      imageConfig: {
-        aspectRatio: "1:1",
+  let response: unknown;
+  try {
+    response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseModalities: [Modality.IMAGE],
+        imageConfig: {
+          aspectRatio: "1:1",
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    const errorWithMeta = error as { name?: string; status?: number; message?: string };
+    throw new Error(
+      `Vertex image generation failed (project=${vertexProject}, location=${vertexLocation}, model=${model}): ` +
+      `${errorWithMeta.name ?? "Error"} status=${errorWithMeta.status ?? "unknown"} ` +
+      `${errorWithMeta.message ?? "unknown error"}`,
+    );
+  }
 
   const { base64, mimeType } = extractImageBase64(response);
   const imageBytes = Buffer.from(base64, "base64");
