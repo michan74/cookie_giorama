@@ -120,16 +120,13 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
     res.status(500).send("Server configuration error");
     return;
   }
-  const vertexProject = process.env.VERTEX_PROJECT_ID
-    ?? process.env.GCP_PROJECT_ID
-    ?? process.env.GCLOUD_PROJECT;
-  if (!vertexProject) {
-    logger.error("VERTEX_PROJECT_ID or GCP_PROJECT_ID (or GCLOUD_PROJECT) is not configured");
+  const genaiApiKey = process.env.GENAI_API_KEY;
+  if (!genaiApiKey) {
+    logger.error("GENAI_API_KEY is not configured");
     res.status(500).send("Server configuration error");
     return;
   }
-  const vertexLocation = process.env.VERTEX_LOCATION ?? "global";
-  const vertexImageModel = process.env.VERTEX_IMAGE_MODEL ?? "gemini-2.5-flash-image";
+  const genaiImageModel = process.env.GENAI_IMAGE_MODEL ?? "gemini-2.5-flash-image";
   const storageBucket = process.env.STORAGE_BUCKET;
   if (!storageBucket) {
     logger.error("STORAGE_BUCKET is not configured");
@@ -186,9 +183,8 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
     try {
       const generated = await generateCookieImage(
         message.text,
-        vertexProject,
-        vertexLocation,
-        vertexImageModel,
+        genaiApiKey,
+        genaiImageModel,
       );
 
       stage = "postprocess_transparency";
@@ -223,8 +219,7 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
         imageBytes: generated.imageBytes.length,
         uploadImageBytes: imageBytesForUpload.length,
         imageUrl,
-        vertexLocation,
-        vertexImageModel,
+        genaiImageModel,
       });
 
       stage = "reply_line";
@@ -237,8 +232,7 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
         errorMessage: errorInfo.message,
         errorStatus: errorInfo.status,
         errorStack: errorInfo.stack,
-        vertexLocation,
-        vertexImageModel,
+        genaiImageModel,
       });
       await replyText(message.replyToken, "画像生成でエラーが発生しました。", channelAccessToken);
     }

@@ -3,7 +3,7 @@
 ## 1. 事前準備（プロジェクト土台）
 - [x] Firebase Cloud Functions（Node.js 20+ / TypeScript）のプロジェクト初期化を行う。
 - [x] 必要ライブラリを追加する（LINE SDK、Firebase Admin SDK、google-genai、HTTPクライアントなど）。
-- [x] 環境変数を定義する（LINEチャネルシークレット、LINEチャネルアクセストークン、Vertex AI設定、Firebase設定）。
+- [x] 環境変数を定義する（LINEチャネルシークレット、LINEチャネルアクセストークン、GenAI設定、Firebase設定）。
 - [x] ローカル実行方法（Emulator / Docker）とデプロイ手順を README に最小限記載する。
 
 ## 2. Webhookエンドポイント実装

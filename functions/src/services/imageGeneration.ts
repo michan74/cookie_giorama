@@ -47,43 +47,54 @@ function extractImageBase64(response: unknown): { base64: string; mimeType: stri
 
 export async function generateCookieImage(
   userInputText: string,
-  vertexProject: string,
-  vertexLocation: string,
+  genaiApiKey: string,
   model: string,
 ): Promise<{ imageBytes: Buffer; mimeType: string; prompt: string }> {
   const prompt = buildCookieImagePrompt(userInputText);
-  const ai = new GoogleGenAI({
-    vertexai: true,
-    project: vertexProject,
-    location: vertexLocation,
-  });
+  const ai = new GoogleGenAI({ apiKey: genaiApiKey });
 
-  let response: unknown;
-  try {
-    response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseModalities: [Modality.IMAGE],
-        imageConfig: {
-          aspectRatio: "1:1",
+  const maxAttempts = 3;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseModalities: [Modality.IMAGE],
+          imageConfig: {
+            aspectRatio: "1:1",
+          },
         },
-      },
-    });
-  } catch (error) {
-    const errorWithMeta = error as { name?: string; status?: number; message?: string };
-    throw new Error(
-      `Vertex image generation failed (project=${vertexProject}, location=${vertexLocation}, model=${model}): ` +
-      `${errorWithMeta.name ?? "Error"} status=${errorWithMeta.status ?? "unknown"} ` +
-      `${errorWithMeta.message ?? "unknown error"}`,
-    );
+      });
+
+      const { base64, mimeType } = extractImageBase64(response);
+      const imageBytes = Buffer.from(base64, "base64");
+      if (imageBytes.length === 0) {
+        throw new Error("Generated image bytes are empty");
+      }
+
+      return { imageBytes, mimeType, prompt };
+    } catch (error) {
+      lastError = error;
+      const errorWithMeta = error as { status?: number };
+      const isRateLimited = errorWithMeta.status === 429;
+      const hasNextAttempt = attempt < maxAttempts;
+      if (!isRateLimited || !hasNextAttempt) {
+        break;
+      }
+
+      const backoffMs = 1000 * 2 ** (attempt - 1);
+      const jitterMs = Math.floor(Math.random() * 300);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs + jitterMs));
+    }
   }
 
-  const { base64, mimeType } = extractImageBase64(response);
-  const imageBytes = Buffer.from(base64, "base64");
-  if (imageBytes.length === 0) {
-    throw new Error("Generated image bytes are empty");
-  }
-
-  return { imageBytes, mimeType, prompt };
+  const errorWithMeta = lastError as { name?: string; status?: number; message?: string };
+  throw new Error(
+    `GenAI image generation failed (model=${model}): ` +
+    `${errorWithMeta.name ?? "Error"} status=${errorWithMeta.status ?? "unknown"} ` +
+    `${errorWithMeta.message ?? "unknown error"}`,
+  );
 }
