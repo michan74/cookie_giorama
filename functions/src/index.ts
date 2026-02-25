@@ -3,6 +3,7 @@ import { logger } from "firebase-functions";
 import { validateSignature } from "@line/bot-sdk";
 import { generateCookieImage } from "./services/imageGeneration";
 import { uploadCookieImage } from "./services/storage";
+import { createCookieRecord } from "./services/database";
 
 type LineWebhookEvent = {
   type: string;
@@ -191,6 +192,12 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
 
       stage = "upload_storage";
       const imageUrl = await uploadCookieImage(generated.imageBytes, message.userId ?? "unknown");
+      stage = "db_register";
+      await createCookieRecord({
+        imageUrl,
+        text: message.text,
+      });
+
       logger.info("Image generated", {
         mimeType: generated.mimeType,
         imageBytes: generated.imageBytes.length,
