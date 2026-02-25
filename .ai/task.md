@@ -39,9 +39,11 @@
 
 ## 7. Realtime Database登録
 - [x] 保存先 `cookies` 直下に `push()` でレコード追加する。
-- [x] 保存データに `imageUrl` / `text` / `createdAt` / `posX` / `rotation` を含める。
+- [x] 保存データに `imageUrl` / `text` / `createdAt` / `posX` / `posY` / `rotation` / `scale` を含める。
 - [x] `posX` は `0.0 ~ 1.0` の乱数で生成する。
+- [x] `posY` は `0.0 ~ 1.0` の乱数で生成する。
 - [x] `rotation` は `-20 ~ +20` の乱数で生成する。
+- [x] `scale` は `0.8 ~ 1.2` の乱数で生成する。
 
 ## 8. LINE返信処理
 - [ ] 成功時に「つくったよ」テキストを `reply` する。

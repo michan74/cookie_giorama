@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>PdE+ITS懇親会 ジオラマ (重力版)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    #diorama-container {
+      position: relative;
+      width: 100vw;
+      height: 56.25vw;
+      max-height: 100vh;
+      max-width: 177.77vh;
+      background-image: url('back.jpg'); /* ★背景画像のURL★ */
+      background-size: cover;
+      background-position: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      overflow: hidden; /* はみ出したお菓子を隠す */
+    }
+
+    /* お菓子のスタイル（物理演算用に調整） */
+    .candy {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 120px; /* お菓子のサイズ（ピクセル固定が物理演算と相性◎） */
+      height: auto;
+      object-fit: contain;
+      mix-blend-mode: multiply; /* 白背景を透過させる魔法のCSS */
+      will-change: transform; /* アニメーションを滑らかにするおまじない */
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+
+  <div id="diorama-container"></div>
+  <script src="./firebase-config.js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = window.FIREBASE_CONFIG;
+    if (!firebaseConfig) {
+      throw new Error('FIREBASE_CONFIG is not defined. Create HTML/firebase-config.js from firebase-config.example.js');
+    }
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const container = document.getElementById('diorama-container');
+
+    // --- ここから Matter.js (物理演算) の設定 ---
+    const Engine = Matter.Engine,
+          Runner = Matter.Runner,
+          Body = Matter.Body,
+          Bodies = Matter.Bodies,
+          Composite = Matter.Composite;
+
+    const engine = Engine.create();
+    
+    // 画面サイズを取得
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // 「見えない壁」と「床」を作る（これがないとお菓子が画面外に落ちてしまう）
+    const wallOptions = { isStatic: true }; // 動かない物体にする設定
+    const ground = Bodies.rectangle(width / 2, height + 25, width, 50, wallOptions);
+    const leftWall = Bodies.rectangle(-25, height / 2, 50, height, wallOptions);
+    const rightWall = Bodies.rectangle(width + 25, height / 2, 50, height, wallOptions);
+    
+    // 世界に壁と床を追加
+    Composite.add(engine.world, [ground, leftWall, rightWall]);
+    Runner.run(Runner.create(), engine);
+
+    // 画像(HTML)と物理体(Matter.js)を紐づけるための配列
+    const physicalCandies = [];
+
+    // 毎フレーム実行される描画ループ（物理体の位置に合わせて画像を動かす）
+    function renderLoop() {
+      physicalCandies.forEach(item => {
+        // 物理エンジンの座標と角度を取得して、HTMLの画像（img）に適用
+        const x = item.body.position.x - item.img.offsetWidth / 2;
+        const y = item.body.position.y - item.img.offsetHeight / 2;
+        const angle = item.body.angle;
+        item.img.style.transform = `translate(${x}px, ${y}px) rotate(${angle}rad)`;
+      });
+      requestAnimationFrame(renderLoop); // ずっと繰り返す
+    }
+    renderLoop();
+    // --- 物理演算の設定ここまで ---
+
+
+    // Firebaseからデータが来た時の処理
+    const cookiesRef = ref(db, 'cookies');
+    onChildAdded(cookiesRef, (snapshot) => {
+      const data = snapshot.val();
+      if(data && data.imageUrl) {
+        spawnCandy({
+          imageUrl: data.imageUrl,
+          posX: data.posX,
+          rotation: data.rotation,
+          scale: data.scale,
+        });
+      }
+    });
+
+    // お菓子を上から落とす関数
+    function spawnCandy({ imageUrl, posX, rotation, scale }) {
+      // 1. HTMLの画像要素を作る
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.className = 'candy';
+      container.appendChild(img);
+
+      // 2. 物理演算用の「丸い物体」を作る
+      const hasValidScale = typeof scale === 'number' && Number.isFinite(scale) && scale > 0;
+      const scaleFactor = hasValidScale ? scale : 1;
+      const baseSize = 120;
+      const size = baseSize * scaleFactor;
+      img.style.width = `${size}px`;
+      // DBのposX(0.0〜1.0)を優先。未指定時はランダム値を使う。
+      const hasValidPosX = typeof posX === 'number' && posX >= 0 && posX <= 1;
+      const normalizedX = hasValidPosX ? posX : Math.random();
+      const spawnX = normalizedX * (width - size) + size / 2;
+      
+      const body = Bodies.circle(spawnX, -100, size / 2.5, {
+        restitution: 0.5, // 弾みやすさ（0〜1）
+        friction: 0.3     // 摩擦
+      });
+
+      // DBのrotation(度)を優先。未指定時は0度。
+      const hasValidRotation = typeof rotation === 'number' && Number.isFinite(rotation);
+      const rotationRad = hasValidRotation ? (rotation * Math.PI) / 180 : 0;
+      Body.setAngle(body, rotationRad);
+
+      // 3. 世界に追加して、配列に保存
+      Composite.add(engine.world, body);
+      physicalCandies.push({ body: body, img: img });
+    }
+  </script>
+</body>
+</html>

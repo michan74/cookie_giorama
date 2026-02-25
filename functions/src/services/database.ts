@@ -16,8 +16,17 @@ function randomPosX(): number {
   return Math.round(Math.random() * 1000) / 1000;
 }
 
+function randomPosY(): number {
+  return Math.round(Math.random() * 1000) / 1000;
+}
+
 function randomRotation(): number {
   return Math.floor(Math.random() * 41) - 20;
+}
+
+function randomScale(): number {
+  // 0.8〜1.2の範囲でサイズ変化を持たせる。
+  return Math.round((0.8 + Math.random() * 0.4) * 1000) / 1000;
 }
 
 export async function createCookieRecord(input: {
@@ -32,6 +41,8 @@ export async function createCookieRecord(input: {
     text: input.text,
     createdAt: Date.now(),
     posX: randomPosX(),
+    posY: randomPosY(),
     rotation: randomRotation(),
+    scale: randomScale(),
   });
 }

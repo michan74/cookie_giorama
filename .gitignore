@@ -4,3 +4,4 @@ functions/node_modules/
 functions/lib/
 firebase-debug.log
 firebase-debug.*.log
+HTML/firebase-config.js
