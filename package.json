@@ -1,0 +1,24 @@
+{
+  "name": "cookie_giorama",
+  "version": "1.0.0",
+  "description": "LINEのテキスト入力からAIクッキー画像を生成し、Firebaseへ保存する Firebase Cloud Functions（Node.js/TypeScript）バックエンドです。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/michan74/cookie_giorama.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/michan74/cookie_giorama/issues"
+  },
+  "homepage": "https://github.com/michan74/cookie_giorama#readme",
+  "devDependencies": {
+    "firebase-tools": "^15.7.0"
+  }
+}
