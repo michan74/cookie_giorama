@@ -1,0 +1,7 @@
+.git
+.gitignore
+node_modules
+functions/node_modules
+functions/lib
+firebase-debug.log
+firebase-debug.*.log

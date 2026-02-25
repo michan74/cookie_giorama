@@ -1,0 +1,16 @@
+services:
+  firebase-emulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cookie-giorama-firebase-emulator
+    working_dir: /workspace
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    volumes:
+      - .:/workspace
+    command: >
+      sh -c "npm --prefix functions run build &&
+      firebase emulators:start --only functions --project demo-cookie-giorama --config firebase.json"
