@@ -10,8 +10,8 @@ Generation rules:
 3. Sweet type: Choose one suitable type such as icing cookie, macaron, candy, or cupcake.
 4. Visual style: Cute decorations with pastel icing, colorful sprinkles, and sugar candy details.
 5. Texture: Photorealistic macro food photography.
-6. Composition: Isolated subject centered on transparent background, with no unnecessary shadows.
-7. Output: PNG style image suitable for compositing.
+6. Composition: Isolated subject centered on a solid pure white background, with no shadows.
+7. Output: PNG style image suitable for compositing after background post-processing.
 8. Aspect ratio: 1:1.`;
 }
 

@@ -4,6 +4,7 @@ import { validateSignature } from "@line/bot-sdk";
 import { generateCookieImage } from "./services/imageGeneration";
 import { uploadCookieImage } from "./services/storage";
 import { createCookieRecord } from "./services/database";
+import { makeNearWhiteTransparent } from "./services/imagePostProcess";
 
 type LineWebhookEvent = {
   type: string;
@@ -190,8 +191,27 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
         vertexImageModel,
       );
 
+      stage = "postprocess_transparency";
+      let imageBytesForUpload = generated.imageBytes;
+      try {
+        const postProcessed = await makeNearWhiteTransparent(generated.imageBytes);
+        imageBytesForUpload = postProcessed.outputPngBytes;
+        logger.info("Image post-processed", {
+          threshold: postProcessed.threshold,
+          whiteToTransparentPixels: postProcessed.whiteToTransparentPixels,
+          inputBytes: postProcessed.inputBytes,
+          outputBytes: postProcessed.outputBytes,
+        });
+      } catch (postProcessError) {
+        const postProcessErrorInfo = toErrorInfo(postProcessError);
+        logger.warn("Image post-process failed; using original image", {
+          errorName: postProcessErrorInfo.name,
+          errorMessage: postProcessErrorInfo.message,
+        });
+      }
+
       stage = "upload_storage";
-      const imageUrl = await uploadCookieImage(generated.imageBytes, message.userId ?? "unknown");
+      const imageUrl = await uploadCookieImage(imageBytesForUpload, message.userId ?? "unknown");
       stage = "db_register";
       await createCookieRecord({
         imageUrl,
@@ -201,6 +221,7 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
       logger.info("Image generated", {
         mimeType: generated.mimeType,
         imageBytes: generated.imageBytes.length,
+        uploadImageBytes: imageBytesForUpload.length,
         imageUrl,
         vertexLocation,
         vertexImageModel,
