@@ -19,9 +19,10 @@ npm --prefix functions install
 
 - `LINE_CHANNEL_SECRET`
 - `LINE_CHANNEL_ACCESS_TOKEN`
-- `GEMINI_API_KEY`
-- `FIREBASE_DATABASE_URL`
-- `FIREBASE_STORAGE_BUCKET`
+- `GCP_PROJECT_ID`
+- `VERTEX_LOCATION`（例: `asia-northeast1`）
+- `DATABASE_URL`
+- `STORAGE_BUCKET`
 
 ## Local run (Firebase Emulator)
 
