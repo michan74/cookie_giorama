@@ -1,10 +1,11 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { validateSignature } from "@line/bot-sdk";
-import { generateCookieImage } from "./services/imageGeneration";
+import { generateCookieImage, generateCookieImageFromPhoto } from "./services/imageGeneration";
 import { uploadCookieImage } from "./services/storage";
 import { createCookieRecord } from "./services/database";
 import { makeNearWhiteTransparent } from "./services/imagePostProcess";
+import { fetchLineImageContent } from "./services/lineContent";
 
 type LineWebhookEvent = {
   type: string;
@@ -15,12 +16,27 @@ type LineWebhookEvent = {
   message?: {
     type?: string;
     text?: string;
+    id?: string;
   };
 };
 
 type LineWebhookBody = {
   events?: LineWebhookEvent[];
 };
+
+type ProcessMessage =
+  | {
+    kind: "text";
+    text: string;
+    userId: string | null;
+    replyToken: string | null;
+  }
+  | {
+    kind: "image";
+    messageId: string;
+    userId: string | null;
+    replyToken: string | null;
+  };
 
 function toErrorInfo(error: unknown): {
   name: string;
@@ -145,24 +161,40 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
 
   const body = (req.body ?? {}) as LineWebhookBody;
   const events = Array.isArray(body.events) ? body.events : [];
-  const textMessages: Array<{ text: string; userId: string | null; replyToken: string | null }> = [];
+  const processMessages: ProcessMessage[] = [];
 
   for (const event of events) {
     if (event.type !== "message") {
       continue;
     }
 
-    if (event.message?.type !== "text") {
+    if (event.message?.type === "text") {
+      const text = event.message.text?.trim();
+      if (!text) {
+        continue;
+      }
+
+      processMessages.push({
+        kind: "text",
+        text,
+        userId: event.source?.userId ?? null,
+        replyToken: event.replyToken ?? null,
+      });
       continue;
     }
 
-    const text = event.message.text?.trim();
-    if (!text) {
+    if (event.message?.type !== "image") {
       continue;
     }
 
-    textMessages.push({
-      text,
+    const messageId = event.message.id;
+    if (!messageId) {
+      continue;
+    }
+
+    processMessages.push({
+      kind: "image",
+      messageId,
       userId: event.source?.userId ?? null,
       replyToken: event.replyToken ?? null,
     });
@@ -170,10 +202,12 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
 
   logger.info("LINE webhook processed", {
     totalEvents: events.length,
-    textMessageCount: textMessages.length,
+    processMessageCount: processMessages.length,
+    textMessageCount: processMessages.filter((message) => message.kind === "text").length,
+    imageMessageCount: processMessages.filter((message) => message.kind === "image").length,
   });
 
-  for (const message of textMessages) {
+  for (const message of processMessages) {
     if (!message.replyToken) {
       logger.warn("Reply token is missing");
       continue;
@@ -181,11 +215,30 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
 
     let stage = "generate_image";
     try {
-      const generated = await generateCookieImage(
-        message.text,
-        genaiApiKey,
-        genaiImageModel,
-      );
+      let generated: { imageBytes: Buffer; mimeType: string; prompt: string };
+      let sourceTextForRecord = "[image]";
+
+      if (message.kind === "text") {
+        generated = await generateCookieImage(
+          message.text,
+          genaiApiKey,
+          genaiImageModel,
+        );
+        sourceTextForRecord = message.text;
+      } else {
+        stage = "fetch_line_image";
+        const lineImage = await fetchLineImageContent({
+          messageId: message.messageId,
+          channelAccessToken,
+        });
+        stage = "generate_image";
+        generated = await generateCookieImageFromPhoto(
+          lineImage.imageBytes,
+          lineImage.mimeType,
+          genaiApiKey,
+          genaiImageModel,
+        );
+      }
 
       stage = "postprocess_transparency";
       let imageBytesForUpload = generated.imageBytes;
@@ -211,7 +264,7 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
       stage = "db_register";
       await createCookieRecord({
         imageUrl,
-        text: message.text,
+        text: sourceTextForRecord,
       });
 
       logger.info("Image generated", {
@@ -228,13 +281,18 @@ export const webhook = onRequest({ region: "asia-northeast1" }, async (req, res)
       const errorInfo = toErrorInfo(error);
       logger.error("Failed in image generation flow", {
         stage,
+        messageKind: message.kind,
         errorName: errorInfo.name,
         errorMessage: errorInfo.message,
         errorStatus: errorInfo.status,
         errorStack: errorInfo.stack,
         genaiImageModel,
       });
-      await replyText(message.replyToken, "画像生成でエラーが発生しました。", channelAccessToken);
+      if (stage === "fetch_line_image") {
+        await replyText(message.replyToken, "画像の取得に失敗しました。もう一度送ってください。", channelAccessToken);
+      } else {
+        await replyText(message.replyToken, "画像生成でエラーが発生しました。", channelAccessToken);
+      }
     }
   }
 
