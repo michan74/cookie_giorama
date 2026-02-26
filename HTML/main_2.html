@@ -66,6 +66,8 @@
           Composite = Matter.Composite;
 
     const engine = Engine.create();
+    // 落下を少しゆっくり見せるための物理パラメータ
+    engine.world.gravity.y = 0.35;
     
     // 画面サイズを取得
     const width = container.clientWidth;
@@ -134,7 +136,8 @@
       
       const body = Bodies.circle(spawnX, -100, size / 2.5, {
         restitution: 0.5, // 弾みやすさ（0〜1）
-        friction: 0.3     // 摩擦
+        friction: 0.3,    // 摩擦
+        frictionAir: 0.02 // 空気抵抗（大きいほどゆっくり落ちる）
       });
 
       // DBのrotation(度)を優先。未指定時は0度。
